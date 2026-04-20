@@ -1,0 +1,214 @@
+# JetShift PWA — Specification
+
+## Overview
+
+A progressive web app that generates a personalised 7-day jet lag mitigation plan based on circadian phase-response curve (PRC) science. Covers pre-flight, in-flight, and post-arrival phases. Modalities: light exposure, light avoidance, sleep timing, meal scheduling, melatonin flags, caffeine guidance.
+
+-----
+
+## Science Model
+
+### Core algorithm: Kronauer/Jewett/Forger circadian oscillator (simplified)
+
+Based on:
+
+- Kronauer et al. (1999) — mathematical model of the human circadian pacemaker
+- Jewett & Kronauer (1998) — photic resetting strength as function of circadian phase
+- Eastman & Burgess (2009) — practical light/dark schedules for jet lag
+- Revell & Eastman (2005) — chronotype-adjusted phase shifting
+- Sack et al. (2007) — AASM clinical guidelines on circadian rhythm disorders
+
+### Phase-Response Curve implementation
+
+The human circadian clock (~24.2 hr intrinsic period) responds asymmetrically to light:
+
+- **Phase advances** (shift earlier): light in late biological night / early subjective morning
+- **Phase delays** (shift later): light in early biological night / late subjective evening
+- **Dead zone**: light near CBT (core body temperature minimum) peak has minimal effect
+
+CBT minimum estimation:
+
+```
+cbtMin = midSleep - 2hrs  (where midSleep = midpoint of habitual sleep window)
+```
+
+Chronotype adjustment to CBT minimum:
+
+- Early chronotype (lark): CBT min ≈ 03:00 home time
+- Intermediate: CBT min ≈ 04:00–05:00 home time
+- Late chronotype (owl): CBT min ≈ 06:00 home time
+
+### Direction logic
+
+**Eastward travel** (phase advance required):
+
+- Seek light in the 4 hrs AFTER CBT minimum
+- Avoid light in the 4 hrs BEFORE CBT minimum
+- Advance sleep 1–2 hrs/day pre-travel if shift > 6 hrs
+
+**Westward travel** (phase delay required):
+
+- Seek light in the 4 hrs BEFORE CBT minimum
+- Avoid light in the 4 hrs AFTER CBT minimum
+- Delay sleep 1–2 hrs/day pre-travel if shift > 6 hrs
+
+**Threshold rule**: shifts ≤ 3 hrs → minimal intervention, general advice only.
+
+### CBT minimum tracking
+
+CBT minimum shifts by approximately:
+
+- Eastward: advances ~1–1.5 hrs/day with consistent light exposure
+- Westward: delays ~1.5–2 hrs/day with consistent light exposure
+
+Plan recalculates CBT minimum position each day to generate accurate windows.
+
+### In-flight handling
+
+- Convert all layover windows to home-time CBT position
+- Flag “seek light” / “avoid light” per airport layover time
+- Flag “sleep opportunity” windows based on destination sleep schedule
+- Melatonin recommendation: 0.5–5mg at destination bedtime (flag only, no dosing)
+
+### Meal scheduling
+
+- Meals anchor peripheral clocks independently of light
+- Pre-travel: shift meal times 1 hr/day toward destination schedule
+- Post-arrival: eat meals strictly on destination local time from day 1
+- Fast during “destination night” in-flight where possible (Saper fasting protocol reference)
+
+### Caffeine guidance
+
+- Avoid caffeine within 6 hrs of intended sleep window
+- Strategic use: 1–2 cups upon wake if wake time is being advanced
+
+-----
+
+## Data Model
+
+### UserInput
+
+```typescript
+interface UserInput {
+  // Travel
+  originTZ: string;           // IANA tz string e.g. "Europe/London"
+  destinationTZ: string;      // IANA tz string e.g. "Australia/Sydney"
+  departureDateTime: string;  // ISO 8601 local origin time
+  arrivalDateTime: string;    // ISO 8601 local destination time
+  layovers: Layover[];
+
+  // Circadian baseline
+  chronotype: 'early' | 'intermediate' | 'late';
+  habitual SleepStart: string; // HH:MM local time
+  habitualWakeTime: string;    // HH:MM local time
+}
+
+interface Layover {
+  airport: string;            // IATA code or freetext
+  layoverTZ: string;          // IANA tz string
+  arrivalLocal: string;       // ISO 8601
+  departureLocal: string;     // ISO 8601
+}
+```
+
+### Plan output
+
+```typescript
+interface JetLagPlan {
+  metadata: PlanMetadata;
+  days: DayPlan[];            // 7 days: pre-travel + in-flight + post-arrival
+}
+
+interface PlanMetadata {
+  tzShiftHours: number;       // signed: positive = east, negative = west
+  direction: 'east' | 'west' | 'minimal';
+  chronotype: string;
+  cbtMinBaseline: string;     // HH:MM home time day 0
+  generatedAt: string;
+}
+
+interface DayPlan {
+  dayIndex: number;           // 0 = day of plan start
+  date: string;               // ISO date
+  phase: 'pre-travel' | 'travel' | 'layover' | 'post-arrival';
+  cbtMinEstimate: string;     // HH:MM in reference tz for that day
+  hourlyBlocks: HourBlock[];
+  daySummary: string;
+}
+
+interface HourBlock {
+  hour: number;               // 0–23 local time for that day/phase
+  localTime: string;          // HH:MM display
+  actions: Action[];
+}
+
+interface Action {
+  type: 'seek-light' | 'avoid-light' | 'sleep' | 'wake' | 
+        'meal' | 'fast' | 'caffeine-ok' | 'caffeine-avoid' |
+        'melatonin-flag' | 'info';
+  label: string;
+  detail?: string;
+  priority: 'critical' | 'recommended' | 'optional';
+}
+```
+
+-----
+
+## Application Screens
+
+### Screen 1 — Input form
+
+Fields:
+
+- Origin timezone (searchable select, IANA zones)
+- Destination timezone (searchable select)
+- Departure date + time
+- Arrival date + time
+- Layovers (repeatable section): airport, arrival time, departure time, timezone
+- Chronotype (3-option radio: Early bird / In-between / Night owl)
+- Habitual sleep start + wake time
+- CTA: “Generate my plan”
+
+Validation:
+
+- Departure must precede arrival
+- Layover times must fall between departure and arrival
+- Wake time must follow sleep time (handles midnight crossing)
+- Both timezones required
+
+### Screen 2 — Plan view
+
+- Header: journey summary, shift hours, direction
+- Day tabs or vertical scroll (7 days)
+- Per day: phase label, date, CBT minimum indicator
+- Hourly timeline: 24-block strip, colour-coded by action type
+- Expandable blocks: tap to see detail + rationale
+- Melatonin + caffeine flags clearly badged
+- “About this plan” modal: summary of algorithm basis + disclaimer
+
+### PWA Shell
+
+- Web App Manifest: name, icons (192/512), theme_color, display: standalone
+- Service Worker: cache-first for all static assets; plan data stored in IndexedDB
+- Installable prompt handling
+- Offline fallback page
+
+-----
+
+## Constraints & Assumptions
+
+- No backend; all computation client-side
+- Timezone library: `@internationalized/date` or `luxon` (no moment)
+- Framework: Vanilla JS or React (TBD at build phase)
+- No user accounts; plan persists in localStorage/IndexedDB per session
+- Disclaimer: not medical advice; consult physician re melatonin
+- Tested timezones: all IANA zones via Intl.DateTimeFormat
+
+-----
+
+## Out of scope (v1)
+
+- Push notifications for action reminders
+- Apple Health / Google Fit integration
+- Multiple saved trips
+- Wearable sleep data import

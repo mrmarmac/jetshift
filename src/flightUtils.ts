@@ -20,6 +20,22 @@ export function convertToHomeTime(localDT: string, fromTZ: string, toTZ: string)
   return { homeTime: adjusted.toFormat('HH:mm'), homeDate: adjusted.toISODate() ?? '' };
 }
 
-export function layoverPhaseWindows(layovers: unknown[], cbtMin: string, direction: string): unknown[] {
-  return [];
+interface LayoverWindow {
+  airport: string;
+  lightActions: { type: string; label: string; priority: string; localTime: string }[];
+}
+
+export function layoverPhaseWindows(layovers: unknown[], cbtMin: string, direction: string): LayoverWindow[] {
+  if (layovers.length === 0) return [];
+  const windows = computeLightWindows(cbtMin, direction as Direction);
+  return (layovers as { airport: string }[]).map(layover => {
+    const lightActions: LayoverWindow['lightActions'] = [];
+    if (windows.seekLight) {
+      lightActions.push({ type: 'seek-light', label: 'Seek Light', priority: 'critical', localTime: windows.seekLight.start });
+    }
+    if (windows.avoidLight) {
+      lightActions.push({ type: 'avoid-light', label: 'Avoid Light', priority: 'critical', localTime: windows.avoidLight.start });
+    }
+    return { airport: layover.airport, lightActions };
+  });
 }

@@ -1,3 +1,4 @@
+import { DateTime } from 'luxon';
 import { toMinutes, fromMinutes } from './lib/time';
 import type { Chronotype, Direction } from './types';
 
@@ -19,7 +20,13 @@ export function computeCBTMinimum(sleep: string, wake: string, chronotype: Chron
 }
 
 export function detectTravelDirection(originTZ: string, destTZ: string): Direction {
-  return 'minimal';
+  const now = DateTime.now();
+  const originOffset = now.setZone(originTZ).offset;
+  const destOffset = now.setZone(destTZ).offset;
+  let diff = destOffset - originOffset;
+  if (diff < -720) diff += 1440;
+  if (Math.abs(diff) <= 180) return 'minimal';
+  return diff > 0 ? 'east' : 'west';
 }
 
 export function computeLightWindows(cbtMin: string, direction: Direction): LightWindows {

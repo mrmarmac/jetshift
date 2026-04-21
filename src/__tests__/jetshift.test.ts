@@ -142,7 +142,7 @@ describe('advanceCBTMinimum', () => {
   it('advances CBT min by ~1.25 hrs/day eastward with light exposure', () => {
     const day0 = '04:00';
     const day1 = advanceCBTMinimum(day0, 'east', true);
-    const diff = toMinutes(day1) - toMinutes(day0);
+    const diff = toMinutes(day0) - toMinutes(day1); // advance = day1 is earlier
     expect(diff).toBeGreaterThanOrEqual(60);
     expect(diff).toBeLessThanOrEqual(90);
   });
@@ -150,7 +150,7 @@ describe('advanceCBTMinimum', () => {
   it('delays CBT min by ~1.75 hrs/day westward with light exposure', () => {
     const day0 = '04:00';
     const day1 = advanceCBTMinimum(day0, 'west', true);
-    const diff = toMinutes(day0) - toMinutes(day1); // note: delay = smaller number
+    const diff = toMinutes(day1) - toMinutes(day0); // delay = day1 is later
     expect(diff).toBeGreaterThanOrEqual(75);
     expect(diff).toBeLessThanOrEqual(120);
   });
@@ -159,13 +159,13 @@ describe('advanceCBTMinimum', () => {
     const day0 = '04:00';
     const withLight = advanceCBTMinimum(day0, 'east', true);
     const withoutLight = advanceCBTMinimum(day0, 'east', false);
-    expect(toMinutes(withLight)).toBeGreaterThan(toMinutes(withoutLight));
+    expect(toMinutes(withLight)).toBeLessThan(toMinutes(withoutLight));
   });
 
   it('handles wrap-around past midnight', () => {
-    const result = advanceCBTMinimum('23:30', 'east', true);
+    const result = advanceCBTMinimum('00:30', 'east', true);
     expect(result).toMatch(/^\d{2}:\d{2}$/);
-    // should wrap to early morning e.g. 00:45–01:00
+    // advance from 00:30 wraps backward past midnight e.g. 23:15
   });
 });
 
@@ -225,10 +225,14 @@ describe('generatePlan', () => {
   it('CBT minimum advances each day for eastward travel', () => {
     const plan = generatePlan(baseInput);
     const cbtTimes = plan.days.map(d => toMinutes(d.cbtMinEstimate));
-    // On net, CBT min should be later by end of plan (advance = later in local time...
-    // actually for east advance, CBT min moves earlier in home time)
-    // Check monotonic movement rather than direction (direction tested in circadian module)
-    const movements = cbtTimes.slice(1).map((t, i) => t - cbtTimes[i]);
+    // Eastward advance shifts CBT min earlier each day; normalize each step to
+    // [-720, 720] so midnight wrap-around doesn't flip the sign.
+    const movements = cbtTimes.slice(1).map((t, i) => {
+      let d = t - (cbtTimes[i] ?? 0);
+      if (d > 720) d -= 1440;
+      if (d < -720) d += 1440;
+      return d;
+    });
     const allSameDirection = movements.every(m => m > 0) || movements.every(m => m < 0);
     expect(allSameDirection).toBe(true);
   });

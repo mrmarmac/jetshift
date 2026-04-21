@@ -30,7 +30,18 @@ export function detectTravelDirection(originTZ: string, destTZ: string): Directi
 }
 
 export function computeLightWindows(cbtMin: string, direction: Direction): LightWindows {
-  return { seekLight: null, avoidLight: null };
+  if (direction === 'minimal') return { seekLight: null, avoidLight: null };
+  const c = toMinutes(cbtMin);
+  if (direction === 'east') {
+    return {
+      seekLight:  { start: fromMinutes(c),       end: fromMinutes(c + 240) },
+      avoidLight: { start: fromMinutes(c - 240), end: fromMinutes(c) },
+    };
+  }
+  return {
+    seekLight:  { start: fromMinutes(c - 240), end: fromMinutes(c) },
+    avoidLight: { start: fromMinutes(c),       end: fromMinutes(c + 240) },
+  };
 }
 
 export function advanceCBTMinimum(cbtMin: string, direction: Direction, lightCompliance: boolean): string {

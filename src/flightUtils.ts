@@ -8,8 +8,16 @@ export function computeFlightDuration(dep: string, originTZ: string, arr: string
   return a.diff(d, 'minutes').minutes;
 }
 
+function standardOffset(tz: string): number {
+  const jan = DateTime.local(2025, 1, 15).setZone(tz).offset;
+  const jul = DateTime.local(2025, 7, 15).setZone(tz).offset;
+  return Math.min(jan, jul);
+}
+
 export function convertToHomeTime(localDT: string, fromTZ: string, toTZ: string): { homeTime: string; homeDate: string } {
-  return { homeTime: '', homeDate: '' };
+  const dt = DateTime.fromISO(localDT, { zone: fromTZ });
+  const adjusted = dt.plus({ minutes: standardOffset(toTZ) - standardOffset(fromTZ) });
+  return { homeTime: adjusted.toFormat('HH:mm'), homeDate: adjusted.toISODate() ?? '' };
 }
 
 export function layoverPhaseWindows(layovers: unknown[], cbtMin: string, direction: string): unknown[] {

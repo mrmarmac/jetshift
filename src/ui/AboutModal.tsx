@@ -27,7 +27,7 @@ export default function AboutModal({ onClose }: Props) {
 }
 
 const overlay: React.CSSProperties = {
-  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+  position: 'fixed', top: 0, right: 0, bottom: 0, left: 0, background: 'rgba(0,0,0,0.7)',
   display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
 };
 const box: React.CSSProperties = {

@@ -45,5 +45,9 @@ export function computeLightWindows(cbtMin: string, direction: Direction): Light
 }
 
 export function advanceCBTMinimum(cbtMin: string, direction: Direction, lightCompliance: boolean): string {
-  return cbtMin;
+  const factor = lightCompliance ? 1 : 0.5;
+  const delta = direction === 'east' ?  75 * factor
+              : direction === 'west' ? -90 * factor
+              : 0;
+  return fromMinutes(toMinutes(cbtMin) + delta);
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { validateUserInput } from '../validation';
 import { generatePlan } from '../planner';
 import { savePlan } from '../storage';
+import { TZ_OPTIONS, TZ_OTHER } from '../constants/timezones';
 import type { UserInput, Chronotype } from '../types';
 
 interface Props {
@@ -22,9 +23,33 @@ const btn: React.CSSProperties = {
   padding: '0.6rem 1.2rem', fontSize: '1rem', cursor: 'pointer', marginTop: '0.5rem',
 };
 
+function TZSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const isPreset = TZ_OPTIONS.some(o => o.value === value);
+  return (
+    <>
+      <select
+        style={input}
+        value={isPreset ? value : TZ_OTHER}
+        onChange={e => onChange(e.target.value === TZ_OTHER ? '' : e.target.value)}
+      >
+        {TZ_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        <option value={TZ_OTHER}>Other (IANA)…</option>
+      </select>
+      {!isPreset && (
+        <input
+          style={{ ...input, marginTop: 4 }}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder="e.g. Asia/Dubai"
+        />
+      )}
+    </>
+  );
+}
+
 export default function InputForm({ onPlanSaved, onAbout }: Props) {
   const [originTZ, setOriginTZ] = useState('Europe/London');
-  const [destinationTZ, setDestinationTZ] = useState('Australia/Sydney');
+  const [destinationTZ, setDestinationTZ] = useState('Australia/Melbourne');
   const [departureDateTime, setDeparture] = useState('2025-06-01T10:00');
   const [arrivalDateTime, setArrival] = useState('2025-06-02T17:00');
   const [chronotype, setChronotype] = useState<Chronotype>('intermediate');
@@ -66,12 +91,12 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
       </div>
       <form onSubmit={handleSubmit}>
         <div style={field}>
-          <span style={label}>Origin timezone (IANA)</span>
-          <input style={input} value={originTZ} onChange={e => setOriginTZ(e.target.value)} placeholder="e.g. Europe/London" />
+          <span style={label}>Origin timezone</span>
+          <TZSelect value={originTZ} onChange={setOriginTZ} />
         </div>
         <div style={field}>
-          <span style={label}>Destination timezone (IANA)</span>
-          <input style={input} value={destinationTZ} onChange={e => setDestinationTZ(e.target.value)} placeholder="e.g. Australia/Sydney" />
+          <span style={label}>Destination timezone</span>
+          <TZSelect value={destinationTZ} onChange={setDestinationTZ} />
         </div>
         <div style={field}>
           <span style={label}>Departure (local time)</span>

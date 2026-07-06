@@ -22,7 +22,9 @@ import { generateMealSchedule } from '../mealScheduler';
 import { assembleHourlyBlocks } from '../actions';
 import { validateUserInput } from '../validation';
 import { savePlan, getPlan, listPlans, deletePlan, clearPlanStorage } from '../storage';
+import { TZ_OPTIONS } from '../constants/timezones';
 import type { Action } from '../types';
+import { DateTime } from 'luxon';
 
 // ─────────────────────────────────────────────
 // MODULE 1: circadian.ts
@@ -634,6 +636,30 @@ describe('Service Worker caching', () => {
     expect(manifest.name).toBe('JetShift');
     expect(manifest.display).toBe('standalone');
     expect(manifest.icons).toBeDefined();
+  });
+});
+
+// ─────────────────────────────────────────────
+// MODULE 9: constants/timezones.ts (Stage 10)
+// ─────────────────────────────────────────────
+
+describe('TZ_OPTIONS', () => {
+  it('exposes Melbourne, London, and Berlin', () => {
+    const values = TZ_OPTIONS.map(o => o.value);
+    expect(values).toContain('Australia/Melbourne');
+    expect(values).toContain('Europe/London');
+    expect(values).toContain('Europe/Berlin');
+  });
+
+  it('all option values are valid IANA zones', () => {
+    TZ_OPTIONS.forEach(o => {
+      expect(DateTime.local().setZone(o.value).isValid).toBe(true);
+    });
+  });
+
+  it('option values are distinct', () => {
+    const values = TZ_OPTIONS.map(o => o.value);
+    expect(new Set(values).size).toBe(values.length);
   });
 });
 

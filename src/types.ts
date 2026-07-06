@@ -18,6 +18,7 @@ export interface UserInput {
   chronotype: Chronotype;
   habitualSleepStart: string;
   habitualWakeTime: string;
+  preTravelDays?: number;
 }
 
 export interface Action {
@@ -44,6 +45,7 @@ export interface DayPlan {
   cbtMinEstimate: string;
   hourlyBlocks: HourBlock[];
   daySummary: string;
+  sleepWindow?: { start: string; end: string };
 }
 
 export interface PlanMetadata {

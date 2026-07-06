@@ -51,3 +51,26 @@ export function advanceCBTMinimum(cbtMin: string, direction: Direction, lightCom
               : 0;
   return fromMinutes(toMinutes(cbtMin) + delta);
 }
+
+/**
+ * Sleep window for a pre-travel day, progressively shifted toward destination
+ * time. `preTravelDayIndex` 0 is the earliest day; the day closest to departure
+ * (largest index) gets the largest shift. East advances (earlier), west delays
+ * (later), ~`maxShiftPerDay` minutes per day.
+ */
+export function shiftedSleepWindow(
+  habitualSleep: string,
+  habitualWake: string,
+  direction: Direction,
+  preTravelDayIndex: number,
+  totalPreTravelDays: number,
+  maxShiftPerDay = 60,
+): { start: string; end: string } {
+  if (direction === 'minimal') return { start: habitualSleep, end: habitualWake };
+  const magnitude = maxShiftPerDay * (preTravelDayIndex + 1);
+  const delta = direction === 'east' ? -magnitude : magnitude;
+  return {
+    start: fromMinutes(toMinutes(habitualSleep) + delta),
+    end: fromMinutes(toMinutes(habitualWake) + delta),
+  };
+}

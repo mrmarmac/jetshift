@@ -53,6 +53,7 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
   const [departureDateTime, setDeparture] = useState('2025-06-01T10:00');
   const [arrivalDateTime, setArrival] = useState('2025-06-02T17:00');
   const [chronotype, setChronotype] = useState<Chronotype>('intermediate');
+  const [preTravelDays, setPreTravelDays] = useState(3);
   const [habitualSleepStart, setSleep] = useState('23:00');
   const [habitualWakeTime, setWake] = useState('07:00');
   const [errors, setErrors] = useState<string[]>([]);
@@ -63,7 +64,7 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
     const userInput: UserInput = {
       originTZ, destinationTZ,
       departureDateTime, arrivalDateTime,
-      chronotype, habitualSleepStart, habitualWakeTime,
+      chronotype, preTravelDays, habitualSleepStart, habitualWakeTime,
       layovers: [],
     };
     const result = validateUserInput(userInput);
@@ -112,6 +113,14 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
             <option value="early">Early bird</option>
             <option value="intermediate">Intermediate</option>
             <option value="late">Night owl</option>
+          </select>
+        </div>
+        <div style={field}>
+          <span style={label}>Pre-travel prep</span>
+          <select style={input} value={preTravelDays} onChange={e => setPreTravelDays(Number(e.target.value))}>
+            <option value={3}>3 days before departure</option>
+            <option value={4}>4 days before departure</option>
+            <option value={5}>5 days before departure</option>
           </select>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>

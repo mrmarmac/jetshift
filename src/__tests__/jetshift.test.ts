@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { computeCBTMinimum, detectTravelDirection, computeLightWindows, advanceCBTMinimum } from '../circadian';
+import { computeCBTMinimum, detectTravelDirection, computeLightWindows, advanceCBTMinimum, shiftedSleepWindow } from '../circadian';
 import { generatePlan } from '../planner';
 import { computeFlightDuration, layoverPhaseWindows, convertToHomeTime } from '../flightUtils';
 import { generateMealSchedule } from '../mealScheduler';
@@ -172,6 +172,33 @@ describe('advanceCBTMinimum', () => {
   });
 });
 
+describe('shiftedSleepWindow', () => {
+  it('returns the habitual window for minimal direction', () => {
+    expect(shiftedSleepWindow('23:00', '07:00', 'minimal', 0, 3)).toEqual({ start: '23:00', end: '07:00' });
+  });
+
+  it('advances sleep earlier each pre-travel day for east', () => {
+    const starts = [0, 1, 2, 3].map(i => toMinutes(shiftedSleepWindow('23:00', '07:00', 'east', i, 4).start));
+    for (let i = 1; i < starts.length; i++) {
+      expect(starts[i]).toBeLessThan(starts[i - 1] ?? 0);
+    }
+  });
+
+  it('delays sleep later each pre-travel day for west', () => {
+    const starts = [0, 1, 2, 3].map(i => toMinutes(shiftedSleepWindow('23:00', '07:00', 'west', i, 4).start));
+    for (let i = 1; i < starts.length; i++) {
+      expect(starts[i]).toBeGreaterThan(starts[i - 1] ?? 0);
+    }
+  });
+
+  it('shifts about one hour per day', () => {
+    const d0 = toMinutes(shiftedSleepWindow('23:00', '07:00', 'west', 0, 4).start);
+    const d1 = toMinutes(shiftedSleepWindow('23:00', '07:00', 'west', 1, 4).start);
+    expect(Math.abs(d1 - d0)).toBeGreaterThanOrEqual(45);
+    expect(Math.abs(d1 - d0)).toBeLessThanOrEqual(75);
+  });
+});
+
 // ─────────────────────────────────────────────
 // MODULE 2: planner.ts
 // ─────────────────────────────────────────────
@@ -263,6 +290,46 @@ describe('generatePlan', () => {
       );
       const cbtHour = toMinutes(day1.cbtMinEstimate) / 60;
       seekBlocks.forEach(b => expect(b.hour).toBeLessThan(cbtHour));
+    }
+  });
+});
+
+describe('generatePlan pre-travel shifting', () => {
+  const baseInput = {
+    originTZ: 'Europe/London',
+    destinationTZ: 'Australia/Sydney',
+    departureDateTime: '2025-06-01T10:00:00',
+    arrivalDateTime: '2025-06-02T17:00:00',
+    layovers: [],
+    chronotype: 'intermediate' as const,
+    habitualSleepStart: '23:00',
+    habitualWakeTime: '07:00',
+  };
+
+  it('defaults to 2 pre-travel days and 7 total days', () => {
+    const plan = generatePlan(baseInput);
+    expect(plan.days).toHaveLength(7);
+    expect(plan.days.filter(d => d.phase === 'pre-travel')).toHaveLength(2);
+  });
+
+  it('expands the plan when preTravelDays is 4', () => {
+    const plan = generatePlan({ ...baseInput, preTravelDays: 4 });
+    expect(plan.days).toHaveLength(9);
+    expect(plan.days.filter(d => d.phase === 'pre-travel')).toHaveLength(4);
+    const firstDay = new Date(plan.days[0].date);
+    const departure = new Date('2025-06-01');
+    const diffDays = (departure.getTime() - firstDay.getTime()) / 86400000;
+    expect(diffDays).toBe(4);
+  });
+
+  it('progressively shifts pre-travel sleep windows toward destination', () => {
+    const plan = generatePlan({ ...baseInput, preTravelDays: 4 });
+    const preStarts = plan.days
+      .filter(d => d.phase === 'pre-travel')
+      .map(d => toMinutes(d.sleepWindow?.start ?? '00:00'));
+    // eastward travel advances sleep earlier each day → strictly decreasing
+    for (let i = 1; i < preStarts.length; i++) {
+      expect(preStarts[i]).toBeLessThan(preStarts[i - 1] ?? 0);
     }
   });
 });

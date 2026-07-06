@@ -23,7 +23,25 @@ const ACTION_COLOUR: Record<string, string> = {
   'fast': '#f59e0b',
   'caffeine-avoid': '#dc2626',
   'melatonin-flag': '#8b5cf6',
+  'info': '#38bdf8',
 };
+
+function alertnessHue(score: number): string {
+  // red (low) → amber (moderate) → green (high)
+  const hue = Math.round((score / 100) * 120);
+  return `hsl(${hue}, 65%, 45%)`;
+}
+
+function AlertnessMeter({ score }: { score: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto', flexShrink: 0 }} title={`Alertness ${score}/100`}>
+      <div style={{ width: 44, height: 5, background: '#374151', borderRadius: 3, overflow: 'hidden' }}>
+        <div style={{ width: `${score}%`, height: '100%', background: alertnessHue(score) }} />
+      </div>
+      <span style={{ fontSize: '0.65rem', color: '#9ca3af', width: 18, textAlign: 'right' }}>{score}</span>
+    </div>
+  );
+}
 
 function ActionBadge({ action }: { action: Action }) {
   const bg = ACTION_COLOUR[action.type] ?? '#374151';
@@ -54,6 +72,7 @@ function HourRow({ block, selected, onClick }: { block: HourBlock; selected: boo
           : block.actions.map((a, i) => <ActionBadge key={i} action={a} />)
         }
       </div>
+      {block.alertness !== undefined && <AlertnessMeter score={block.alertness} />}
     </div>
   );
 }

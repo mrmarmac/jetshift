@@ -1,4 +1,5 @@
 import { toMinutes, fromMinutes } from './lib/time';
+import { alertnessScore, isNapOpportunity } from './twoProcess';
 import type { Action, HourBlock, Phase, Direction } from './types';
 
 interface LightWindow {
@@ -33,6 +34,7 @@ export function assembleHourlyBlocks(params: AssembleParams): HourBlock[] {
     const actions: Action[] = [];
 
     const inSleep = hourInWindow(hour, sleepWindow.start, sleepWindow.end);
+    let alertness: number | undefined;
 
     if (inSleep) {
       actions.push({ type: 'sleep', label: 'Sleep', priority: 'recommended', localTime });
@@ -46,6 +48,13 @@ export function assembleHourlyBlocks(params: AssembleParams): HourBlock[] {
       if (hourInWindow(hour, caffeineStartStr, sleepWindow.start)) {
         actions.push({ type: 'caffeine-avoid', label: 'Avoid Caffeine', priority: 'optional', localTime });
       }
+
+      const minutesAwake = ((hour * 60) - toMinutes(sleepWindow.end) + 1440) % 1440;
+      const alertnessParams = { clockMinutes: hour * 60, cbtMinMinutes: toMinutes(params.cbtMin), minutesAwake };
+      alertness = alertnessScore(alertnessParams);
+      if (isNapOpportunity(alertnessParams)) {
+        actions.push({ type: 'info', label: 'Nap opportunity', priority: 'optional', localTime });
+      }
     }
 
     mealActions
@@ -56,6 +65,6 @@ export function assembleHourlyBlocks(params: AssembleParams): HourBlock[] {
       actions.push({ type: 'melatonin-flag', label: 'Melatonin', priority: 'optional', localTime });
     }
 
-    return { hour, localTime, actions };
+    return { hour, localTime, actions, alertness };
   });
 }

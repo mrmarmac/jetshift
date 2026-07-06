@@ -23,6 +23,7 @@ import { assembleHourlyBlocks } from '../actions';
 import { validateUserInput } from '../validation';
 import { savePlan, getPlan, listPlans, deletePlan, clearPlanStorage } from '../storage';
 import { TZ_OPTIONS } from '../constants/timezones';
+import { processS, processC, alertnessScore, classifyAlertness, isNapOpportunity } from '../twoProcess';
 import type { Action } from '../types';
 import { DateTime } from 'luxon';
 
@@ -660,6 +661,79 @@ describe('TZ_OPTIONS', () => {
   it('option values are distinct', () => {
     const values = TZ_OPTIONS.map(o => o.value);
     expect(new Set(values).size).toBe(values.length);
+  });
+});
+
+// ─────────────────────────────────────────────
+// MODULE 10: twoProcess.ts (Stage 11)
+// ─────────────────────────────────────────────
+
+describe('twoProcess', () => {
+  it('processS rises monotonically with wakefulness', () => {
+    expect(processS(60)).toBeLessThan(processS(600));
+    expect(processS(600)).toBeLessThan(processS(1080));
+  });
+
+  it('processS stays within [0,1]', () => {
+    [0, 60, 300, 720, 1080, 1440, 2000].forEach(m => {
+      expect(processS(m)).toBeGreaterThanOrEqual(0);
+      expect(processS(m)).toBeLessThanOrEqual(1);
+    });
+  });
+
+  it('processC troughs at the CBT minimum', () => {
+    const cbt = 240;
+    expect(processC(cbt, cbt)).toBeCloseTo(-1, 5);
+    expect(processC(cbt, cbt)).toBeLessThan(processC(cbt + 720, cbt));
+  });
+
+  it('alertnessScore stays within [0,100]', () => {
+    for (let clock = 0; clock < 1440; clock += 30) {
+      const s = alertnessScore({ clockMinutes: clock, cbtMinMinutes: 240, minutesAwake: 480 });
+      expect(s).toBeGreaterThanOrEqual(0);
+      expect(s).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('alertness falls after prolonged wakefulness', () => {
+    const base = { clockMinutes: 720, cbtMinMinutes: 240 };
+    const fresh = alertnessScore({ ...base, minutesAwake: 60 });
+    const tired = alertnessScore({ ...base, minutesAwake: 960 });
+    expect(tired).toBeLessThan(fresh);
+  });
+
+  it('flags a nap opportunity near the trough when tired, not at the peak when fresh', () => {
+    const cbt = 240;
+    expect(isNapOpportunity({ clockMinutes: cbt, cbtMinMinutes: cbt, minutesAwake: 960 })).toBe(true);
+    expect(isNapOpportunity({ clockMinutes: cbt + 720, cbtMinMinutes: cbt, minutesAwake: 60 })).toBe(false);
+  });
+
+  it('classifyAlertness bins low/moderate/high', () => {
+    expect(classifyAlertness(20)).toBe('low');
+    expect(classifyAlertness(50)).toBe('moderate');
+    expect(classifyAlertness(80)).toBe('high');
+  });
+});
+
+describe('assembleHourlyBlocks alertness', () => {
+  it('attaches an alertness score to every wake-hour block', () => {
+    const blocks = assembleHourlyBlocks({
+      date: '2025-06-01',
+      phase: 'pre-travel',
+      cbtMin: '04:00',
+      direction: 'east',
+      lightWindows: { seekLight: { start: '04:00', end: '08:00' }, avoidLight: { start: '00:00', end: '04:00' } },
+      sleepWindow: { start: '23:00', end: '07:00' },
+      mealActions: [],
+    });
+    blocks.forEach(b => {
+      const asleep = b.actions.some(a => a.type === 'sleep');
+      if (!asleep) {
+        expect(typeof b.alertness).toBe('number');
+        expect(b.alertness).toBeGreaterThanOrEqual(0);
+        expect(b.alertness).toBeLessThanOrEqual(100);
+      }
+    });
   });
 });
 

@@ -34,6 +34,7 @@ export interface HourBlock {
   hour: number;
   localTime: string;
   actions: Action[];
+  alertness?: number;
 }
 
 export interface DayPlan {

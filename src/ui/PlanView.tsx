@@ -12,6 +12,7 @@ type StoredPlan = JetLagPlan & { id: string };
 const PHASE_COLOUR: Record<string, string> = {
   'pre-travel': '#7c3aed',
   'travel': '#0891b2',
+  'layover': '#d97706',
   'post-arrival': '#059669',
 };
 

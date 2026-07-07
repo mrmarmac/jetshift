@@ -2,7 +2,16 @@ import { DateTime } from 'luxon';
 import { computeCBTMinimum, detectTravelDirection, computeLightWindows, advanceCBTMinimum, shiftedSleepWindow } from './circadian';
 import { generateMealSchedule } from './mealScheduler';
 import { assembleHourlyBlocks } from './actions';
-import type { UserInput, JetLagPlan, DayPlan, Phase } from './types';
+import { layoverPhaseWindows } from './flightUtils';
+import type { UserInput, JetLagPlan, DayPlan, HourBlock, Action, Phase } from './types';
+
+function buildLayoverBlocks(actions: Action[]): HourBlock[] {
+  return Array.from({ length: 24 }, (_, hour) => {
+    const localTime = `${hour.toString().padStart(2, '0')}:00`;
+    const hourActions = actions.filter(a => parseInt(a.localTime.split(':')[0] ?? '0') === hour);
+    return { hour, localTime, actions: hourActions };
+  });
+}
 
 export function generatePlan(input: UserInput): JetLagPlan {
   const direction = detectTravelDirection(input.originTZ, input.destinationTZ);
@@ -67,6 +76,24 @@ export function generatePlan(input: UserInput): JetLagPlan {
     });
 
     cbtCurrent = advanceCBTMinimum(cbtCurrent, direction, true);
+  }
+
+  if (input.layovers.length > 0) {
+    const travelIdx = days.findIndex(d => d.phase === 'travel');
+    const travelDay = days[travelIdx];
+    if (travelDay) {
+      const windows = layoverPhaseWindows(input.layovers, travelDay.cbtMinEstimate, direction);
+      const layoverDays: DayPlan[] = windows.map(w => ({
+        dayIndex: 0, // renumbered below
+        date: DateTime.fromISO(w.arrivalLocal, { zone: w.layoverTZ }).toISODate() ?? travelDay.date,
+        phase: 'layover' as Phase,
+        cbtMinEstimate: travelDay.cbtMinEstimate,
+        hourlyBlocks: buildLayoverBlocks(w.lightActions),
+        daySummary: '',
+      }));
+      days.splice(travelIdx + 1, 0, ...layoverDays);
+      days.forEach((d, idx) => { d.dayIndex = idx; });
+    }
   }
 
   return {

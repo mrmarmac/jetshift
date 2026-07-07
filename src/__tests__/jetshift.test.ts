@@ -334,6 +334,41 @@ describe('generatePlan pre-travel shifting', () => {
   });
 });
 
+describe('generatePlan with layovers', () => {
+  const baseInput = {
+    originTZ: 'Europe/London',
+    destinationTZ: 'Australia/Sydney',
+    departureDateTime: '2025-06-01T10:00:00',
+    arrivalDateTime: '2025-06-02T17:00:00',
+    layovers: [],
+    chronotype: 'intermediate' as const,
+    habitualSleepStart: '23:00',
+    habitualWakeTime: '07:00',
+  };
+
+  it('keeps 7 days and no layover phase when layovers are empty', () => {
+    const plan = generatePlan(baseInput);
+    expect(plan.days).toHaveLength(7);
+    expect(plan.days.map(d => d.phase)).not.toContain('layover');
+  });
+
+  it('inserts a layover phase day when a layover is present', () => {
+    const plan = generatePlan({
+      ...baseInput,
+      layovers: [{
+        airport: 'DXB',
+        layoverTZ: 'Asia/Dubai',
+        arrivalLocal: '2025-06-01T21:00:00',
+        departureLocal: '2025-06-02T03:00:00',
+      }],
+    });
+    expect(plan.days).toHaveLength(8);
+    expect(plan.days.map(d => d.phase)).toContain('layover');
+    // dayIndex stays sequential after insertion
+    plan.days.forEach((d, i) => expect(d.dayIndex).toBe(i));
+  });
+});
+
 // ─────────────────────────────────────────────
 // MODULE 3: flightUtils.ts
 // ─────────────────────────────────────────────
@@ -396,6 +431,41 @@ describe('layoverPhaseWindows', () => {
 
   it('returns empty array for no layovers', () => {
     expect(layoverPhaseWindows([], '04:00', 'east')).toEqual([]);
+  });
+
+  it('emits light actions only within the layover ground window', () => {
+    const layovers = [
+      {
+        airport: 'DXB',
+        layoverTZ: 'Asia/Dubai',
+        arrivalLocal: '2025-06-01T21:00:00',
+        departureLocal: '2025-06-02T03:00:00',
+      },
+    ];
+    const windows = layoverPhaseWindows(layovers, '04:00', 'east');
+    const arr = DateTime.fromISO('2025-06-01T21:00:00', { zone: 'Asia/Dubai' });
+    const dep = DateTime.fromISO('2025-06-02T03:00:00', { zone: 'Asia/Dubai' });
+    const groundHours = new Set<number>();
+    for (let t = arr; t < dep; t = t.plus({ hours: 1 })) groundHours.add(t.hour);
+    windows[0].lightActions.forEach((a: Action) => {
+      const h = parseInt(a.localTime.split(':')[0] ?? '0');
+      expect(groundHours.has(h)).toBe(true);
+    });
+  });
+
+  it('passes through the layover timezone and window', () => {
+    const layovers = [
+      {
+        airport: 'DXB',
+        layoverTZ: 'Asia/Dubai',
+        arrivalLocal: '2025-06-01T21:00:00',
+        departureLocal: '2025-06-02T03:00:00',
+      },
+    ];
+    const windows = layoverPhaseWindows(layovers, '04:00', 'east');
+    expect(windows[0].layoverTZ).toBe('Asia/Dubai');
+    expect(windows[0].arrivalLocal).toBe('2025-06-01T21:00:00');
+    expect(windows[0].departureLocal).toBe('2025-06-02T03:00:00');
   });
 });
 

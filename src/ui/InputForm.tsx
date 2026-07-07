@@ -3,7 +3,7 @@ import { validateUserInput } from '../validation';
 import { generatePlan } from '../planner';
 import { savePlan } from '../storage';
 import { TZ_OPTIONS, TZ_OTHER } from '../constants/timezones';
-import type { UserInput, Chronotype } from '../types';
+import type { UserInput, Chronotype, Layover } from '../types';
 
 interface Props {
   onPlanSaved: (id: string) => void;
@@ -56,8 +56,19 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
   const [preTravelDays, setPreTravelDays] = useState(3);
   const [habitualSleepStart, setSleep] = useState('23:00');
   const [habitualWakeTime, setWake] = useState('07:00');
+  const [layovers, setLayovers] = useState<Layover[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+
+  function addLayover() {
+    setLayovers(ls => [...ls, { airport: '', layoverTZ: 'Asia/Dubai', arrivalLocal: '', departureLocal: '' }]);
+  }
+  function updateLayover(index: number, patch: Partial<Layover>) {
+    setLayovers(ls => ls.map((l, i) => i === index ? { ...l, ...patch } : l));
+  }
+  function removeLayover(index: number) {
+    setLayovers(ls => ls.filter((_, i) => i !== index));
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,7 +76,7 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
       originTZ, destinationTZ,
       departureDateTime, arrivalDateTime,
       chronotype, preTravelDays, habitualSleepStart, habitualWakeTime,
-      layovers: [],
+      layovers,
     };
     const result = validateUserInput(userInput);
     if (!result.valid) {
@@ -106,6 +117,25 @@ export default function InputForm({ onPlanSaved, onAbout }: Props) {
         <div style={field}>
           <span style={label}>Arrival (local time)</span>
           <input style={input} type="datetime-local" value={arrivalDateTime} onChange={e => setArrival(e.target.value)} />
+        </div>
+        <div style={field}>
+          <span style={label}>Layovers</span>
+          {layovers.map((l, i) => (
+            <div key={i} style={{ border: '1px solid #333', borderRadius: 4, padding: '0.5rem', marginBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: 4 }}>
+                <input style={{ ...input, flex: 1 }} value={l.airport} onChange={e => updateLayover(i, { airport: e.target.value })} placeholder="Airport (e.g. DXB)" />
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <TZSelect value={l.layoverTZ} onChange={v => updateLayover(i, { layoverTZ: v })} />
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <input style={input} type="datetime-local" value={l.arrivalLocal} onChange={e => updateLayover(i, { arrivalLocal: e.target.value })} />
+                <input style={input} type="datetime-local" value={l.departureLocal} onChange={e => updateLayover(i, { departureLocal: e.target.value })} />
+              </div>
+              <button type="button" onClick={() => removeLayover(i)} style={{ ...btn, background: 'transparent', border: '1px solid #444', fontSize: '0.75rem', padding: '0.25rem 0.6rem', marginTop: '0.4rem' }}>Remove</button>
+            </div>
+          ))}
+          <button type="button" onClick={addLayover} style={{ ...btn, background: 'transparent', border: '1px solid #444', fontSize: '0.8rem', padding: '0.3rem 0.8rem', marginTop: 0 }}>+ Add layover</button>
         </div>
         <div style={field}>
           <span style={label}>Chronotype</span>
